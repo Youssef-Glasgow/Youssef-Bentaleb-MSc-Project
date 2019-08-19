@@ -1,0 +1,430 @@
+clear all; close all; clc;
+
+path = '../../vbox_share/';
+files_dir =  dir(strcat(path,'track*.track'));
+n_files = numel(files_dir);
+n_track_particles = 5;
+step = 5000;
+
+
+data_0 = dlmread(strcat(path,'track',num2str(step),'.track'), ' ', 9, 0);
+track_particle_ids = sort(data_0(1:n_track_particles,1));
+
+
+for ff = 1:n_files
+    data = dlmread(strcat(path,'track',num2str(ff*step),'.track'), ' ', 9, 0);
+    [c, iA, iB] = intersect(data(:,1),track_particle_ids);
+    track_data(1:n_track_particles,:,ff) = data(iA,3:5);
+end
+
+for ff = 1:n_track_particles
+    x_track(:,ff) = reshape(track_data(ff,1,:),[],1);
+    y_track(:,ff) = reshape(track_data(ff,2,:),[],1);
+    z_track(:,ff) = reshape(track_data(ff,3,:),[],1);
+end
+
+
+%% Inputs
+
+error_rate_perc = 0.1; % Occurance of spurious lines of response
+
+%% Create a random set of coordinates in a circle
+
+
+Coo_x = []
+Coo_y = []
+
+for position = 1:length(x_track)
+% First define parameters that define the number of points and the circle.
+for tt = 1:n_track_particles
+    R = 0.01;
+    gg = 30;
+    x0 = x_track(position, tt); % Center of the circle in the x direction.
+    y0 = y_track(position, tt); % Center of the circle in the y direction.
+
+    % Now create the set of points.
+    t = 2*pi*rand(gg,1);
+    r = R*sqrt(rand(gg,1));
+    x_u(:, tt) = x0 + r.*cos(t);
+    y(:, tt) = y0 + r.*sin(t);
+    % Now display our random set of points in a figure.
+    %     plot(x_u,y, 'o', 'MarkerSize', 1)
+    %     plot(x_track, y_track,'o-')
+%     axis square;
+end
+
+% figure
+% hold on
+% plot(x_u,y, 'o', 'MarkerSize', 1)
+% plot(x_track, y_track,'o-')
+
+o = length(x_u);
+d = o*error_rate_perc;
+D = round(d+0.5)-1;
+
+x_end_1 = zeros(n_track_particles, o-D);
+x_end_2 = zeros(n_track_particles, o-D);
+y_end_1 = zeros(n_track_particles, o-D);
+y_end_2 = zeros(n_track_particles, o-D);
+
+
+for xx = 1:n_track_particles
+    for p = 1:(o-D)
+        R = 2;
+        x0 = x_u(p, xx); % Center of the circle in the x direction.
+        y0 = y(p, xx); % Center of the circle in the y direction.
+        
+        % Now create the back to back set of points.
+        t = 2*pi*rand(1,1);
+        x_end_1(xx,p) = x0 + R.*cos(t);
+        x_end_2(xx,p) = x0 - R.*cos(t);
+        y_end_1(xx,p) = y0 + R.*sin(t);
+        y_end_2(xx,p) = y0 - R.*sin(t);
+        
+        % Now display our random set of points in a figure.
+        %             plot([x_end_1(1,p); x_end_2(1,p)], [y_end_1(1,p); y_end_2(1,p)], 'r-', 'MarkerSize', 5)
+        axis square;
+        axis equal;
+    end
+end
+
+% figure
+% hold on
+% plot([x_end_1(1,:); x_end_2(1,:)], [y_end_1(1,:); y_end_2(1,:)], 'r-', 'MarkerSize', 5)
+% plot([x_end_1(2,:); x_end_2(2,:)], [y_end_1(2,:); y_end_2(2,:)], 'k-', 'MarkerSize', 5)
+% plot(x_u,y, 'o', 'MarkerSize', 1)
+
+%% Create spurious LoR
+
+x_end_1_spu = zeros(n_track_particles, D);
+x_end_2_spu = zeros(n_track_particles, D);
+y_end_1_spu = zeros(n_track_particles, D);
+y_end_2_spu = zeros(n_track_particles, D);
+
+X111 = zeros(n_track_particles, D);
+Y111 = zeros(n_track_particles, D);
+
+for yy = 1:n_track_particles
+    for p = 1:D
+        R = 2;
+        x0 = x_u(p,yy); % Center of the circle in the x direction.
+        y0 = y(p,yy); % Center of the circle in the y direction.
+        % Now create the NON back to back set of points.
+        angle = randi([179 179])/180; % fraction of pi for the spurious lines of response
+        t = 2*pi*rand(1,1);
+        k = t + pi*angle;
+        x_end_1_spu(yy, p) = x0 + R.*cos(t);
+        x_end_2_spu(yy, p) = x0 + R.*cos(k);
+        y_end_1_spu(yy, p) = y0 + R.*sin(t);
+        y_end_2_spu(yy, p) = y0 + R.*sin(k);
+        % Now display our random set of points in a figure.
+        %             plot([x_end_1_spu(1,p); x0], [y_end_1_spu(1,p); y0],[x_end_2_spu(1,p); x0], [y_end_2_spu(1,p); y0], 'r-')
+        %     plot([x_end_1_spu(1,p); x_end_2_spu(1,p)], [y_end_1_spu(1,p); y_end_2_spu(1,p)], 'r-.', 'MarkerSize', 5)
+%         axis square;
+%         axis equal;
+    end
+end
+Perc = 100*(length(x_end_1_spu))/(length(x_end_1)+length(x_end_1_spu));
+display(Perc,'Spurious LoR percentage: ');
+%% Polygon
+
+hold on
+axis square
+axis equal
+t = 0.1:0.05:2*pi;
+x_poly = cos(t)/4;
+y_poly = sin(t)/4;
+x_poly_f = [x_poly x_poly(1)];
+y_poly_f = [y_poly y_poly(1)];
+x_poly_tra = cos(t)/4.4;
+y_poly_tra = sin(t)/4.4;
+x_poly_f_tra = [x_poly_tra x_poly_tra(1)];
+y_poly_f_tra = [y_poly_tra y_poly_tra(1)];
+
+% plot(x_poly_f, y_poly_f, 'k');
+% pgon = polyshape(x_poly,y_poly);
+% plot(pgon)
+
+
+%% Build the 2xN vectors
+
+X11_1 = [];
+X11_2 = [];
+Y11_1 = [];
+Y11_2 = [];
+
+for zz = 1:n_track_particles
+    X11_1_inter = x_end_1(zz,:);
+    X11_1 = [X11_1 X11_1_inter];
+    X11_2_inter = x_end_2(zz,:);
+    X11_2 = [X11_2 X11_2_inter];
+    Y11_1_inter = y_end_1(zz,:);
+    Y11_1 = [Y11_1 Y11_1_inter];
+    Y11_2_inter = y_end_2(zz,:);
+    Y11_2 = [Y11_2 Y11_2_inter];
+end
+
+X11 = [X11_1; X11_2];
+Y11 = [Y11_1; Y11_2];
+
+X111_1 = [];
+X111_2 = [];
+Y111_1 = [];
+Y111_2 = [];
+
+
+for ss = 1:n_track_particles
+    X111_1_inter = x_end_1_spu(ss,:);
+    X111_1 = [X111_1 X111_1_inter];
+    X111_2_inter = x_end_2_spu(ss,:);
+    X111_2 = [X111_2 X111_2_inter];
+    Y111_1_inter = y_end_1_spu(ss,:);
+    Y111_1 = [Y111_1 Y111_1_inter];
+    Y111_2_inter = y_end_2_spu(ss,:);
+    Y111_2 = [Y111_2 Y111_2_inter];
+end
+
+
+X111 = [X111_1; X111_2];
+Y111 = [Y111_1; Y111_2];
+
+%% Intersection between the lines
+
+% number of line segments
+n_line_segments = size(X11,2);
+n_line_segments_spu = size(X111, 2);
+
+X_reshape = reshape(X111, [1, numel(X111)]); % Add space into the vector for spurious coordinates
+
+% First row is the X-coordinate (beginning) of the reference point
+
+X_build = [];
+for aa = 1:n_track_particles
+        X_build_inter = x_track(position, aa).*ones(1, 2*D);
+%     X_build_inter = x_track(position, aa).*ones(1, 2*D);
+    X_build = [X_build X_build_inter];
+end
+
+% First row is the X-coordinate (beginning) of the reference point
+
+Xff = [X_build; X_reshape];
+
+Y_reshape = reshape(Y111, [1, numel(Y111)]); % Add space into the vector for spurious coordinates
+Y_build = [];
+for aa = 1:n_track_particles
+        Y_build_inter = y_track(position, aa).*ones(1, 2*D);
+%     Y_build_inter = y_track(position, aa).*ones(1, 2*D);
+    Y_build = [Y_build Y_build_inter]
+end
+
+% First row is the X-coordinate (beginning) of the reference point
+Yff = [Y_build; Y_reshape];
+
+% compute the intersections line segment by segement
+% avoid double and self checks
+
+Xints = zeros(2, o-D);
+Yints = zeros(2, o-D);
+
+for mm = 1:n_line_segments
+    % the coordinates of LoR 1
+    X1 = X11(:,mm);
+    Y1 = Y11(:,mm);
+    % intersection between true LoR and the edge
+    [Xint, Yint]= polyxpoly(X1,Y1,x_poly_f,y_poly_f);
+    Xints(:, mm) = Xint;
+    Yints(:, mm) = Yint;
+end
+
+Xints_spu = zeros(2, n_line_segments_spu);
+Yints_spu = zeros(2, n_line_segments_spu);
+
+Xints_spu_inter = zeros(1, 2*n_line_segments_spu);
+Yints_spu_inter = zeros(1, 2*n_line_segments_spu);
+
+for vv = 1:2*n_line_segments_spu
+    % the coordinates of spurious LoR 1
+    X2 = Xff(:,vv);
+    Y2 = Yff(:,vv);
+    %intersection between spurious LoR and the edge
+    [Xint_spu, Yint_spu]= polyxpoly(X2,Y2,x_poly_f,y_poly_f);
+    Xints_spu_inter(vv) = Xint_spu;
+    Yints_spu_inter(vv) = Yint_spu;
+end
+
+%% Create the Xints_spu and Yints_spu matrices
+
+gg = 1;
+while ~isempty(Xints_spu_inter)
+    kk = 1;
+    Xints_spu(:,gg) = Xints_spu_inter([kk kk+1]);
+    Xints_spu_inter([kk kk+1]) = [];
+    gg = gg + 1;
+end
+
+hh = 1;
+while ~isempty(Yints_spu_inter)
+    kk = 1;
+    Yints_spu(:,hh) = Yints_spu_inter([kk kk+1]);
+    Yints_spu_inter([kk kk+1]) = [];
+    hh = hh + 1;
+end
+
+
+%% Compute the intersection points (Spurious and True LoR)
+
+X_post = [Xints Xints_spu];
+Y_post = [Yints Yints_spu];
+
+% number of line segments
+n_line_segments = size(X_post,2);
+
+% compute the intersections line segment by segement
+% avoid double and self checks
+Xints_post = [];
+Yints_post = [];
+
+for mm = 1:n_line_segments-1
+    % the coordinates of line 1
+    X1_post = X_post(:,mm);
+    Y1_post = Y_post(:,mm);
+    
+    for nn = mm+1:n_line_segments
+        % the coordinates of line 2
+        X2_post = X_post(:,nn);
+        Y2_post = Y_post(:,nn);
+        % intersection between line 1 and 2
+        [Xint_post, Yint_post]= polyxpoly(X1_post,Y1_post,X2_post,Y2_post);
+        Xints_post = [Xints_post; Xint_post];
+        Yints_post = [Yints_post; Yint_post];
+    end
+end
+
+
+%% LoR figure
+
+% figure(1)
+% hold on;
+% axis square
+% axis equal
+% grid on
+% % plot(X11, Y11)
+% plot(Xints, Yints,'Og')
+% plot(Xints_spu, Yints_spu, 'Or')
+% plot(Xints_post, Yints_post, 'Oy')
+% plot(Xints, Yints, '-g')
+% plot(Xints_spu, Yints_spu, '--r')
+% plot(x_poly_f, y_poly_f, 'k');
+
+
+%% Voronoï Diagram
+
+DT = delaunayTriangulation(Xints_post, Yints_post);
+[V, r] = DT.voronoiDiagram;
+
+% figure
+% hold on
+% axis square
+% axis equal
+% grid on
+ii = 0;
+for vv = 1:length(r)
+    if all(r{vv}~=1)
+        vertices = r{vv};
+        x_v = V(vertices, 1);
+        y_v = V(vertices, 2);
+        if (max(abs(x_v)) < 0.25) && (max(abs(y_v)) < 0.25)
+            x_v_post = x_v;
+            y_v_post = y_v;
+            ii = ii + 1;
+            area(ii) = polyarea([x_v; x_v(1)], [y_v; y_v(1)]);
+%                 patch(x_v', y_v', log(area(ii)))
+                % Compute the centroid of each polygon
+                polyg = r{ii};
+                %x_esti(ii) = sum(x_v_post)/length(x_v_post);
+                %y_esti(ii) = sum(y_v_post)/length(y_v_post);
+                polyin = polyshape(x_v_post, y_v_post);
+                [X(ii), Y(ii)] = centroid(polyin);
+                
+            end
+        end
+    end
+
+
+% colorbar
+
+
+x_n = zeros(1, n_track_particles);
+y_n = zeros(1, n_track_particles);
+% x_n_minus1 = zeros(1, n_track_particles);
+% y_n_minus1 = zeros(1, n_track_particles);
+distance_particles = zeros(1, n_track_particles); % distance between 2 step positions
+
+for cc = 1:n_track_particles
+    x_n(1, cc) = x_track(position, cc);
+    y_n(1, cc) = y_track(position, cc);
+%     x_n_minus1(1, cc) = x_track(position-1, cc);
+%     y_n_minus1(1, cc) = y_track(position-1, cc);
+    x_distance = (x_n(1, cc));
+    y_distance = (y_n(1, cc));
+%     distance_particles(1, cc) = sqrt(x_distance^2 + y_distance^2);
+end
+XX = [];
+YY = [];
+for jj = 5:5
+    for kk = 1:length(X)
+        TEST(kk) =  ((X(kk)-x_n(1,jj))^2 +(Y(kk)-y_n(1,jj))^2);
+        idx = find(TEST < (0.01)^2);
+    end
+    XX = [XX X(idx)];
+    YY = [YY Y(idx)];
+end
+
+% figure
+% histfit(log(area), 40)
+% title('Histogram cells area distribution')
+XY = [XX', YY'];
+[idx,C] = kmeans(XY,n_track_particles,'Distance','cityblock','Start','uniform','Replicates',10);
+
+Coo_x = [Coo_x; C(:, 1)];
+Coo_y = [Coo_y; C(:, 2)];
+
+end
+
+Coo =[Coo_x Coo_y];
+
+
+%% Voronoï Diagram
+
+figure(2)
+hold on;
+axis square
+axis equal
+grid on
+voronoi(Xints_post, Yints_post);
+% plot(Xints_post, Yints_post, 'Oy')
+plot(x_poly_f, y_poly_f, 'k');
+plot(X, Y, 'r*')
+% plot(x_esti, y_esti, 'b*')
+
+end
+
+figure
+hold on;
+grid on
+axis square
+% title('DEM particle trajectory for a single particle')
+xlabel('-0.225 < x < 0.225 the mill diameter') 
+ylabel('-0.225 < y < 0.225 the mill diameter')
+plot(x_track, y_track,'o--')
+% plot(X_esti, Y_esti, 'Og')
+% plot(XY(idx==1, 1), XY(idx==1, 2), 'r*', 'MarkerSize', 20)
+% plot(x_u,y, 'o', 'MarkerSize', 1)
+plot(Coo(:,1), Coo(:, 2), 'r*', 'MarkerSize', 15)
+plot(X, Y, '*r')
+plot(XX, YY, '*b')
+plot(x_poly_f, y_poly_f, 'k--');
+plot(x_poly_f_tra, y_poly_f_tra, 'k');
+
+
+
